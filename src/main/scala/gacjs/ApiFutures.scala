@@ -1,6 +1,7 @@
 package gacjs
 
-import cats.effect.IO
+import cats.effect.Async
+import cats.effect.Concurrent
 import cats.syntax.flatMap._
 import cats.syntax.traverse._
 import com.google.api.core.ApiFuture
@@ -10,17 +11,17 @@ import com.google.common.util.concurrent.MoreExecutors
 
 object ApiFutures {
 
-  def async[A](future: IO[ApiFuture[A]]): IO[A] =
-    future >>= (fu => IO.async(addCallback(fu, _)))
+  def async[F[_], A](future: F[ApiFuture[A]])(implicit F: Async[F]): F[A] =
+    future >>= (fu => F.async[A](addCallback(fu, _)))
 
-  def traverse[A](futures: Vector[IO[ApiFuture[A]]]): IO[Vector[A]] =
-    futures.traverse(async)
+  def traverse[F[_], A](futures: Vector[F[ApiFuture[A]]])(implicit F: Async[F]): F[Vector[A]] =
+    futures.traverse(async[F, A])
 
-  def cancelable[A](future: IO[ApiFuture[A]]): IO[A] =
-    future >>= (fu => IO.cancelable[A] { cb => addCallback(fu, cb); IO(fu.cancel(true)) })
+  def cancelable[F[_], A](future: F[ApiFuture[A]])(implicit F: Concurrent[F]): F[A] =
+    future >>= (fu => F.cancelable[A] { cb => addCallback(fu, cb); F.delay { fu.cancel(true); () } })
 
-  def traverseCancelable[A](futures: Vector[IO[ApiFuture[A]]]): IO[Vector[A]] =
-    futures.traverse(cancelable)
+  def traverseCancelable[F[_], A](futures: Vector[F[ApiFuture[A]]])(implicit F: Concurrent[F]): F[Vector[A]] =
+    futures.traverse(cancelable[F, A])
 
   private def addCallback[A](future: ApiFuture[A], callback: Either[Throwable, A] => Unit): Unit =
     GoogleApiFutures.addCallback(

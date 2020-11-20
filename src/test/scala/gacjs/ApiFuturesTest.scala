@@ -9,6 +9,8 @@ import com.google.api.core.ApiFuture
 import com.google.api.core.{ApiFutures => GoogleApiFutures}
 import munit.FunSuite
 
+import scala.concurrent.ExecutionContext
+
 class ApiFuturesTest extends FunSuite {
   test("async() should retrieve the passed future's value") {
     val io = ApiFutures.async(IO(GoogleApiFutures.immediateFuture(10)))
@@ -16,17 +18,17 @@ class ApiFuturesTest extends FunSuite {
   }
 
   test("async() should fail when the passed future was failed") {
-    val io = ApiFutures.async(IO(GoogleApiFutures.immediateFailedFuture(new Exception("oh no"))))
+    val io = ApiFutures.async[IO, Int](IO(GoogleApiFutures.immediateFailedFuture(new Exception("oh no"))))
     interceptMessage[Exception]("oh no")(io.unsafeRunSync())
   }
 
   test("traverse() should retrieve passed future's values") {
-    val io = ApiFutures.traverse(Vector.range(0, 10).map(a => IO(GoogleApiFutures.immediateFuture(a))))
+    val io = ApiFutures.traverse[IO, Int](Vector.range(0, 10).map(a => IO(GoogleApiFutures.immediateFuture(a))))
     assertEquals(io.unsafeRunSync(), Vector.range(0, 10))
   }
 
   test("traverse() should fail when passed futures has failed future") {
-    val io = ApiFutures.traverse(
+    val io = ApiFutures.traverse[IO, Int](
       Vector
         .range(0, 10)
         .map(a =>
@@ -40,22 +42,27 @@ class ApiFuturesTest extends FunSuite {
   }
 
   test("cancelable() should retrieve the passed future's value") {
-    val io = ApiFutures.cancelable(IO(GoogleApiFutures.immediateFuture(10)))
+    implicit val cs = IO.contextShift(ExecutionContext.global)
+    val io          = ApiFutures.cancelable[IO, Int](IO(GoogleApiFutures.immediateFuture(10)))
     assertEquals(io.unsafeRunSync(), 10)
   }
 
   test("cancelable() should fail when the passed future was failed") {
-    val io = ApiFutures.cancelable(IO(GoogleApiFutures.immediateFailedFuture(new Exception("oh no"))))
+    implicit val cs = IO.contextShift(ExecutionContext.global)
+    val io          = ApiFutures.cancelable[IO, Int](IO(GoogleApiFutures.immediateFailedFuture(new Exception("oh no"))))
     interceptMessage[Exception]("oh no")(io.unsafeRunSync())
   }
 
   test("traverseCancelable() should retrieve passed future's values") {
-    val io = ApiFutures.traverse(Vector.range(0, 10).map(a => IO(GoogleApiFutures.immediateFuture(a))))
+    implicit val cs = IO.contextShift(ExecutionContext.global)
+    val io =
+      ApiFutures.traverseCancelable[IO, Int](Vector.range(0, 10).map(a => IO(GoogleApiFutures.immediateFuture(a))))
     assertEquals(io.unsafeRunSync(), Vector.range(0, 10))
   }
 
   test("traverseCancelable() should fail when passed futures has failed future") {
-    val io = ApiFutures.traverseCancelable(
+    implicit val cs = IO.contextShift(ExecutionContext.global)
+    val io = ApiFutures.traverseCancelable[IO, Int](
       Vector
         .range(0, 10)
         .map(a =>
@@ -69,8 +76,9 @@ class ApiFuturesTest extends FunSuite {
   }
 
   test("traverseCancelable() should cancel when passed futures has failed future") {
-    val never = newNever[Int]
-    val io = ApiFutures.traverseCancelable(
+    implicit val cs = IO.contextShift(ExecutionContext.global)
+    val never       = newNever[Int]
+    val io = ApiFutures.traverseCancelable[IO, Int](
       Vector
         .range(0, 10)
         .map(a =>
