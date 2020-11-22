@@ -1,7 +1,6 @@
 import sbt._
 
 object Dependencies {
-  lazy val kindProjector   = ("org.typelevel"       %% "kind-projector"   % "0.11.0").cross(CrossVersion.full)
   lazy val organizeImports = "com.github.liancheng" %% "organize-imports" % "0.4.4"
 
   lazy val googleApiCommon = "com.google.api" % "api-common"  % "1.10.1"
